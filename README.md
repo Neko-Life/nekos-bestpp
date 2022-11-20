@@ -1,6 +1,6 @@
 # nekos-best++
-C++ API wrapper for [nekos.best](https://nekos.best/)
-[API Documentation](https://docs.nekos.best/)
+C++ API wrapper for [nekos.best](https://nekos.best/),
+[API Documentation](https://docs.nekos.best/).
 
 ## Dependencies
 - [curlpp](https://github.com/jpbarrette/curlpp/)
