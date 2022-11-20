@@ -44,7 +44,7 @@ namespace nekos_best {
 	/**
 	 * @brief Get API list of available endpoint
 	 */
-	std::map<std::string, EndpointSpec> get_available_endpoint();
+	std::map<std::string, EndpointSpec> get_available_endpoints();
 
 	/**
 	 * @brief Metadata struct, for gif format usually anime_name and url are populated, whereas anime_name isn't populated

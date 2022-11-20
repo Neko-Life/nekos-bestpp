@@ -3,7 +3,7 @@
 
 int main(const int argc, const char *argv[]) {	// nekos_best::fetch
 	printf("%s\n", nekos_best::get_base_url().c_str());
-	const std::map<std::string, nekos_best::EndpointSpec> res = nekos_best::get_available_endpoint();
+	const std::map<std::string, nekos_best::EndpointSpec> res = nekos_best::get_available_endpoints();
 
 	for (const auto& d : res) {
 		printf("[RESULT] res:\n%s\n", d.second.json_result.dump(2).c_str());

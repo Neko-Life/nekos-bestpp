@@ -186,7 +186,7 @@ namespace nekos_best {
 		return data;
 	}
 
-	std::map<std::string, EndpointSpec> get_available_endpoint() {
+	std::map<std::string, EndpointSpec> get_available_endpoints() {
 		using return_type = std::map<std::string, EndpointSpec>;
 		
 		return_type endpoints = {};
