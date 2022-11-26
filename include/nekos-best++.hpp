@@ -7,24 +7,26 @@
 #include "nlohmann/json.hpp"
 
 namespace nekos_best {
-	static const std::string BASE_URL = "https://nekos.best/api/"; 	// base url for request
-	static const std::string API_VERSION = "v2"; 			// specify api version
-	static const std::vector<std::string> PNG_CATEGORIES = { "husbando", "kitsune", "neko", "waifu" }; 	// list of category with png format
-	static const std::vector<std::string> GIF_CATEGORIES = { "baka", "bite", "blush", "bored", "cry", 	// list of category with gif format
-								"cuddle", "dance", "facepalm", "feed",
-								"handhold", "happy", "highfive", "hug",
-								"kick", "iss", "laugh", "pat",
-								"poke", "pout", "punch", "shoot",
-								"shrug", "slap", "sleep", "smile",
-								"smug", "stare", "think", "thumbsup",
-								"tickle", "wave", "wink", "yeet",
+	static const std::string 		API_VERSION 	= "v2"; 					// specify api version
+	static const std::string 		BASE_URL 	= "https://nekos.best/api/"; 			// base url for request
+	static const std::vector<std::string> 	PNG_CATEGORIES 	= { "husbando", "kitsune", "neko", "waifu" }; 	// list of category with png format
+	static const std::vector<std::string> 	GIF_CATEGORIES 	= 
+								{ 	// list of category with gif format
+									"baka", "bite", "blush", "bored", "cry",
+									"cuddle", "dance", "facepalm", "feed",
+									"handhold", "happy", "highfive", "hug",
+									"kick", "iss", "laugh", "pat",
+									"poke", "pout", "punch", "shoot",
+									"shrug", "slap", "sleep", "smile",
+									"smug", "stare", "think", "thumbsup",
+									"tickle", "wave", "wink", "yeet",
 								};
 
 	/**
 	 * @brief Known and available image format
 	 */
 	enum image_format {
-		// Default value for params
+		// Default value for function parameter
 		if_none = 0,
 		// PNG
 		if_png = 1,
@@ -60,8 +62,8 @@ namespace nekos_best {
 	std::map<std::string, EndpointSpec> get_available_endpoints();
 
 	/**
-	 * @brief Metadata struct, for gif format usually anime_name and url are populated, whereas anime_name isn't populated
-	 * if the image were a png format
+	 * @brief Metadata struct, for gif format usually anime_name and url are populated,
+	 * 	whereas anime_name isn't populated if the image were a png format
 	 */
 	struct Meta {
 		std::string artist_href;
