@@ -19,6 +19,19 @@ namespace nekos_best {
 								"smug", "stare", "think", "thumbsup",
 								"tickle", "wave", "wink", "yeet",
 								};
+
+	/**
+	 * @brief Known and available image format
+	 */
+	enum image_format {
+		// Default value for params
+		if_none = 0,
+		// PNG
+		if_png = 1,
+		// GIF
+		if_gif = (1 << 1),
+	};
+
 	/**
 	 * @brief Get API base url
 	 */
