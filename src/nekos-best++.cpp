@@ -16,13 +16,27 @@ namespace nekos_best {
 		NOBODY = 1,
 	};
 
+	Response _resp_c;
+
+	void _set_last_response(Response* resp) {
+		_resp_c.headers 	= resp && resp->headers.size() ? resp->headers : std::map<std::string, std::string>();
+		_resp_c.protocol 	= resp && resp->protocol.length() ? resp->protocol : "";
+		_resp_c.status_code 	= resp && resp->status_code > 0L ? resp->status_code : 0L;
+		_resp_c.raw_json 	= resp && resp->raw_json.size() ? resp->raw_json : nlohmann::json();
+	}
+
+	Response _get_last_response(const bool clear = false) {
+		Response cpy = _resp_c;
+		if (clear) _set_last_response(nullptr);
+		return cpy;
+	}
+
 	void _fill_meta(Meta& meta, nlohmann::json& json) {
-		meta.status_code = 0;
-		meta.artist_href = json.value("artist_href", "");
-		meta.artist_name = json.value("artist_name", "");
-		meta.source_url = json.value("source_url", "");
-		meta.url = json.value("url", "");
-		meta.anime_name = json.value("anime_name", "");
+		meta.artist_href 	= json.value("artist_href", "");
+		meta.artist_name 	= json.value("artist_name", "");
+		meta.source_url 	= json.value("source_url", "");
+		meta.url 		= json.value("url", "");
+		meta.anime_name 	= json.value("anime_name", "");
 	}
 
 	// internal use, returns status code
