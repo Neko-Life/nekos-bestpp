@@ -26,7 +26,7 @@ namespace nekos_best {
 	 * @brief Known and available image format
 	 */
 	enum image_format {
-		// Default value for function parameter
+		// default value for function parameter
 		if_none = 0,
 		// PNG
 		if_png = 1,
@@ -40,16 +40,21 @@ namespace nekos_best {
 	std::string get_base_url();
 
 	/**
-	 * @brief Raw jason result container
+	 * @brief Response container
 	 */
-	struct json_cont {
-		nlohmann::json json_result;
+	struct Response {
+		// response status
+		long status_code;
+		// response headers
+		std::map<std::string, std::string> headers;
+		// raw json response
+		nlohmann::json raw_json;
 	};
 
 	/**
 	 * @brief Endpoint specification struct
 	 */
-	struct EndpointSpec : json_cont {
+	struct EndpointSpec {
 		std::string name;
 		std::string min;
 		std::string max;
@@ -71,13 +76,12 @@ namespace nekos_best {
 		std::string source_url;
 		std::string url;
 		std::string anime_name;
-		long status_code;
 	};
 
 	/**
 	 * @brief Query result struct
 	 */
-	struct QueryResult : json_cont {
+	struct QueryResult {
 		std::vector<Meta> results;
 	};
 
