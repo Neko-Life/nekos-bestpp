@@ -190,7 +190,7 @@ namespace nekos_best {
 		}
 
 		if (!res.length()) {
-			fprintf(stderr, "[nekos-best++ WARN] Request has no result\n");
+			if (!(_flag & _req_flag::NOBODY)) fprintf(stderr, "[nekos-best++ WARN] Request has no result\n");
 			parse = false;
 		}
 
@@ -322,16 +322,16 @@ namespace nekos_best {
 		const auto 	not_found 	= response.headers.end();
 
 		const auto res_artist_href 	= response.headers.find("artist_href");
-			data.artist_href 	= res_artist_href != not_found ? res_artist_href->second : "";
+			data.artist_href 	= res_artist_href != not_found ? curlpp::unescape(res_artist_href->second) : "";
 
 		const auto res_artist_name 	= response.headers.find("artist_name");
-			data.artist_name 	= res_artist_name != not_found ? res_artist_name->second : "";
+			data.artist_name 	= res_artist_name != not_found ? curlpp::unescape(res_artist_name->second) : "";
 
 		const auto res_source_url 	= response.headers.find("source_url");
-			data.source_url 	= res_source_url != not_found ? res_source_url->second : "";
+			data.source_url 	= res_source_url != not_found ? curlpp::unescape(res_source_url->second) : "";
 
 		const auto res_anime_name 	= response.headers.find("anime_name");
-			data.anime_name 	= res_anime_name != not_found ? res_anime_name->second : "";
+			data.anime_name 	= res_anime_name != not_found ? curlpp::unescape(res_anime_name->second) : "";
 
 		return data;
 	}
