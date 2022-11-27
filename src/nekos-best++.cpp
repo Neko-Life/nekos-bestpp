@@ -55,7 +55,7 @@ namespace nekos_best {
 		std::vector<std::string> endpoints = {};
 
 		for (auto i = _endpoints_c.begin(); i != _endpoints_c.end(); i++) {
-			if (i->second.format & format) endpoints.push_back(i->first);
+			if (i->second.format == format) endpoints.push_back(i->first);
 		}
 		
 		return endpoints;
@@ -63,8 +63,16 @@ namespace nekos_best {
 
 	EndpointSpec _get_random_endpoint(const image_format format) {
 		const auto available = _get_endpoints_with_format(format);
+		
+		const size_t a_size = available.size();
+		if (!a_size) {
+			fprintf(stderr,
+				"[nekos-best++ ERROR] No available endpoint for format: \"%s\"\n",
+				get_str_format(format).c_str());
+			return { "", "", "", if_none };
+		}
 
-		const int random = _get_random_number() % available.size();
+		const int random = _get_random_number() % a_size;
 
 		return _endpoints_c.at(*(available.begin() + random));
 	}
@@ -74,15 +82,33 @@ namespace nekos_best {
 		const int 	min 	= atoi(endpoint.min.c_str());
 		const int 	max 	= atoi(endpoint.max.c_str());
 
-		const int 	random 	= (_get_random_number() % (max + 1 - min)) + min;
+		const int div_by 	= (max + 1 - min);
 
-		std::string 	result 	= std::to_string(random);
-		
-		for (size_t i = 0; i < pad-result.length(); i++) {
-			result 		= "0" + result;
+		if (pad && div_by > 0) {
+			const int 	random 	= (_get_random_number() % div_by) + min;
+
+			std::string 	result 	= std::to_string(random);
+			const size_t res_length = result.length();
+
+			if (pad < res_length) {
+				fprintf(stderr, "[nekos-best++ ERROR] Unexpected error, base string is longer than total length\n");
+				return "";
+			}
+			
+			for (size_t i = 0; i < (pad-res_length); i++) {
+				result 		= "0" + result;
+			}
+
+			return result;
 		}
-
-		return result;
+		else {
+			fprintf(stderr,
+				"[nekos-best++ ERROR] API error, unexpected endpoint spec: min(%s), max(%s), pad(%ld)\n",
+				endpoint.min.c_str(),
+				endpoint.max.c_str(),
+				pad);
+			return "";
+		}
 	}
 
 	void _set_last_response(Response* resp) {
@@ -250,9 +276,9 @@ namespace nekos_best {
 	Meta fetch_single(const std::string& category, const std::string& filename, const image_format format) {
 		Meta data;
 
-		const size_t cat_length = category.length();
+		const size_t cat_length 	= category.length();
 
-		const image_format using_format = format & if_none ? (cat_length ? _get_category_format(category) : _get_random_format()) : format;
+		const image_format using_format = format == if_none ? (cat_length ? _get_category_format(category) : _get_random_format()) : format;
 
 		const std::string str_format 	= get_str_format(using_format);
 
@@ -365,7 +391,7 @@ namespace nekos_best {
 	}
 
 	QueryResult search(const std::string& query, const image_format format, const std::string& category, const int amount) {
-		const std::string using_format 	= get_str_format(format & if_none ? _get_random_format() : format);
+		const std::string using_format 	= get_str_format(format == if_none ? _get_random_format() : format);
 		std::string 	req_url 	= get_base_url()
 						+ "/search?query="
 						+ curlpp::escape(query)
