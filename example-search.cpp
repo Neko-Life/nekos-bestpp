@@ -8,7 +8,10 @@ int main(const int argc, const char *argv[]) {	// nekos_best::fetch
 		return 1;
 	}
 
-	const auto& res = nekos_best::search(argv[1], atoi(argv[2]), argc > 3 ? argv[3] : "", argc > 4 ? atoi(argv[4]) : 1);
+	// init the client first to cache all available endpoints for it to be able to get random endpoint
+	nekos_best::init();
+
+	const auto& res = nekos_best::search(argv[1], (nekos_best::image_format)atoi(argv[2]), argc > 3 ? argv[3] : "", argc > 4 ? atoi(argv[4]) : 1);
 
 	for (const auto& r : res.results) {
 		printf("artist_href: \"%s\"\n", r.artist_href.c_str());

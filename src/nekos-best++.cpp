@@ -1,6 +1,9 @@
-#include <cstdio>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sstream>
 #include <string>
+#include <chrono>
+#include <algorithm>
 
 #include <curlpp/cURLpp.hpp>
 #include <curlpp/Easy.hpp>
@@ -12,22 +15,87 @@
 
 namespace nekos_best {
 	enum _req_flag {
-		NONE = 0,
-		NOBODY = 1,
+		NONE 	= 0,
+		NOBODY 	= 1,
 	};
 
+	time_t _last_rate_limit = 0L;
+
+	endpoint_map _endpoints_c = {};
 	Response _resp_c;
+
+	int _get_random_number() {
+		srand(std::chrono::high_resolution_clock::now().time_since_epoch().count());
+
+		return rand();
+	}
+
+	image_format _get_category_format(const std::string& category) {
+		const auto find = _endpoints_c.find(category);
+
+		if (find == _endpoints_c.end()) return if_none;
+
+		return find->second.format;
+	}
+
+	image_format _get_random_format() {
+		const int random = _get_random_number() & 1;
+
+		switch (random) {
+			case 1: return if_png;
+			case 0: return if_gif;
+		}
+
+		// this can never possibly happen! but eh
+		// or should we just return png instead?
+		return if_none;
+	}
+
+	std::vector<std::string> _get_endpoints_with_format(const image_format format) {
+		std::vector<std::string> endpoints = {};
+
+		for (auto i = _endpoints_c.begin(); i != _endpoints_c.end(); i++) {
+			if (i->second.format & format) endpoints.push_back(i->first);
+		}
+		
+		return endpoints;
+	}
+
+	EndpointSpec _get_random_endpoint(const image_format format) {
+		const auto available = _get_endpoints_with_format(format);
+
+		const int random = _get_random_number() % available.size();
+
+		return _endpoints_c.at(*(available.begin() + random));
+	}
+
+	std::string _get_random_filename(const EndpointSpec& endpoint) {
+		const size_t 	pad 	= endpoint.max.length();
+		const int 	min 	= atoi(endpoint.min.c_str());
+		const int 	max 	= atoi(endpoint.max.c_str());
+
+		const int 	random 	= (_get_random_number() % (max + 1 - min)) + min;
+
+		std::string 	result 	= std::to_string(random);
+		
+		for (size_t i = 0; i < pad-result.length(); i++) {
+			result 		= "0" + result;
+		}
+
+		return result;
+	}
 
 	void _set_last_response(Response* resp) {
 		_resp_c.headers 	= resp && resp->headers.size() ? resp->headers : std::map<std::string, std::string>();
-		_resp_c.protocol 	= resp && resp->protocol.length() ? resp->protocol : "";
 		_resp_c.status_code 	= resp && resp->status_code > 0L ? resp->status_code : 0L;
 		_resp_c.raw_json 	= resp && resp->raw_json.size() ? resp->raw_json : nlohmann::json();
 	}
 
 	Response _get_last_response(const bool clear = false) {
-		Response cpy = _resp_c;
+		Response cpy 		= _resp_c;
+
 		if (clear) _set_last_response(nullptr);
+
 		return cpy;
 	}
 
@@ -40,7 +108,7 @@ namespace nekos_best {
 	}
 
 	// internal use, returns status code
-	long _request(const std::string& req_url, std::string& res, nlohmann::json *header = NULL, _req_flag _flag = _req_flag::NONE)
+	Response _request(const std::string& req_url, _req_flag _flag = _req_flag::NONE)
 	{
 		using namespace curlpp;
 
@@ -68,60 +136,51 @@ namespace nekos_best {
 			fprintf(stderr, "[nekos-best++ WARN] Status code: %ld\n", res_code);
 		}
 
-		const auto header_size = Infos::HeaderSize::get(request);
-		const std::string res_str = result_stream.str();
-		if (header != NULL) {
-			const std::string head = res_str.substr(0, header_size);
-			// printf("HEADER:\n%s\n", head.c_str());
+		const auto 		header_size 	= Infos::HeaderSize::get(request);
+		const std::string 	res_str 	= result_stream.str();
 
-			std::istringstream str_stream(head);
+		std::map<std::string, std::string> headers = {};
+
+		// parse headers
+		{
+			std::istringstream str_stream(res_str.substr(0, header_size));
 			for (std::string line; std::getline(str_stream, line); ) {
-				if (header->is_null()) {
-					size_t space = line.find(" ");
+				const size_t pos = line.find(": ");
 
-					(*header)["protocol"] = line.substr(0, space);
-					(*header)["status"] = line.substr(space + 1);
+				if (pos != std::string::npos) {
+					const std::string key 	= line.substr(0, pos);
+					const std::string value = line.substr(pos + 2);
 
-					continue;
-				}
-
-				// 				turns out the url is not in response header since they're aware we have it already
-				for (const auto& key : { "artist_href", "artist_name", "source_url", /*"url",*/ "anime_name" }) {
-					const std::string search = std::string(key) + ": ";
-					const size_t pos = line.find(search);
-
-					if (pos != std::string::npos) {
-						const std::string sub = line.substr(pos + search.length());
-						// printf("SUB %s: %s\n", key, sub.c_str());
-						(*header)[key] = sub;
-						break;
-					}
+					headers.insert(std::make_pair(key, value.substr(0, value.length() - 1)));
 				}
 			}
 		}
 
-		res = res_str.substr(header_size);
+		const std::string res 	= res_str.substr(header_size);
+		bool parse = true;
 
 		if (res_code != 200L) {
 			fprintf(stderr, "[nekos-best++ WARN] Response JSON:\n%s\n", res.c_str());
 		}
 
-		return res_code;
+		if (!res.length()) {
+			fprintf(stderr, "[nekos-best++ WARN] Request has no result\n");
+			parse = false;
+		}
+
+		_resp_c.status_code 	= res_code;
+		_resp_c.headers 	= headers;
+		_resp_c.raw_json 	= parse ? nlohmann::json::parse(res) : nlohmann::json();
+
+		return _resp_c;
 	}
 
-	QueryResult _parse_query_result(const std::string& res, long status_code) {
+	QueryResult _parse_query_result(Response& response) {
 		QueryResult result;
-		result.results = {};
+		result.results 		= {};
 
-		if (!res.length()) {
-			fprintf(stderr, "[nekos-best++ ERROR] Request has no result\n");
-			return result;
-		}
-		
-		nlohmann::json json_res = nlohmann::json::parse(res);
+		nlohmann::json json_res = response.raw_json;
 
-		result.json_result = json_res;
-		
 		if (!json_res.is_object()) {
 			fprintf(stderr, "[nekos-best++ ERROR] Unexpected error, JSON Response is not an object:\n%s\n", json_res.dump(2).c_str());
 			return result;
@@ -150,7 +209,6 @@ namespace nekos_best {
 
 				Meta data;
 				_fill_meta(data, value);
-				data.status_code = status_code;
 
 				result.results.push_back(data);
 			}
@@ -159,65 +217,106 @@ namespace nekos_best {
 		return result;
 	}
 
+	void init() {
+		get_available_endpoints();
+	}
+
 	std::string get_base_url() {
 		return BASE_URL + API_VERSION;
 	}
 
-	Meta fetch_single(const std::string& category, const std::string& filename, const std::string& format) {
-		Meta data;
-
-		const std::string req_url = get_base_url() + "/" + curlpp::escape(category) + "/" + curlpp::escape(filename) + "." + curlpp::escape(format);
-
-		data.url = req_url;
-
-		std::string res = "";
-		nlohmann::json header;
-
-		const long status_code = _request(req_url, res, &header, _req_flag::NOBODY);
-		data.status_code = status_code;
-
-		if (header.is_null()) {
-			return data;
+	std::string get_str_format(image_format format) {
+		switch (format) {
+			case if_png : return "png";
+			case if_gif : return "gif";
+			case if_none: return "";
 		}
 
-		// printf("HEADER:\n%s\n", header.dump(2).c_str());
+		// handle casted int
+		return "";
+	}
 
-		const std::string artist_href_with_cr = curlpp::unescape(header.value("artist_href", ""));
-		data.artist_href = artist_href_with_cr.substr(0, artist_href_with_cr.length() - 1);
+	image_format parse_str_format(std::string str) {
+		// expected every letter is lowercase
+		if (str == "png") return if_png;
+		else if (str == "gif") return if_gif;
+		return if_none;
+	}
 
-		const std::string artist_name_with_cr = curlpp::unescape(header.value("artist_name", ""));
-		data.artist_name = artist_name_with_cr.substr(0, artist_name_with_cr.length() - 1);
+	Response get_last_request_response() {
+		return _get_last_response(true);
+	}
 
-		const std::string source_url_with_cr = curlpp::unescape(header.value("source_url", ""));
-		data.source_url = source_url_with_cr.substr(0, source_url_with_cr.length() - 1);
+	Meta fetch_single(const std::string& category, const std::string& filename, const image_format format) {
+		Meta data;
 
-		// const std::string url_with_cr = curlpp::unescape(header.value("url", ""));
-		// data.url = url_with_cr.substr(0, url_with_cr.length() - 1);
+		const size_t cat_length = category.length();
 
-		const std::string anime_name_with_cr = curlpp::unescape(header.value("anime_name", ""));
-		data.anime_name = anime_name_with_cr.substr(0, anime_name_with_cr.length() - 1);
+		const image_format using_format = format & if_none ? (cat_length ? _get_category_format(category) : _get_random_format()) : format;
+
+		const std::string str_format 	= get_str_format(using_format);
+
+		std::string random_category 	= "";
+
+		EndpointSpec using_endpoint;
+		bool 		has_endpoint 	= false;
+
+		if (!cat_length) {
+			using_endpoint 		= _get_random_endpoint(using_format);
+			has_endpoint 		= true;
+			random_category 	= using_endpoint.name;
+		}
+		else {
+			const auto endpoint 	= _endpoints_c.find(category);
+
+			if (endpoint != _endpoints_c.end()) {
+				using_endpoint 	= endpoint->second;
+				has_endpoint 	= true;
+			}
+		}
+
+		const std::string using_category = random_category.length() ? random_category : category;
+		
+		const size_t fn_length = filename.length();
+		if (!fn_length && !has_endpoint) {
+			fprintf(stderr, "[nekos-best++ ERROR] Unitialized client, can't get random filename. Please call `init()` to populate endpoints cache\n");
+		}
+		const std::string using_filename = fn_length ? filename : has_endpoint ? _get_random_filename(using_endpoint) : "";
+
+		const std::string req_url = get_base_url()
+					+ "/"
+					+ curlpp::escape(using_category)
+					+ "/"
+					+ curlpp::escape(using_filename)
+					+ "."
+					+ str_format;
+
+				data.url 	= req_url;
+		Response 	response 	= _request(req_url, NOBODY);
+		const auto 	not_found 	= response.headers.end();
+
+		const auto res_artist_href 	= response.headers.find("artist_href");
+			data.artist_href 	= res_artist_href != not_found ? res_artist_href->second : "";
+
+		const auto res_artist_name 	= response.headers.find("artist_name");
+			data.artist_name 	= res_artist_name != not_found ? res_artist_name->second : "";
+
+		const auto res_source_url 	= response.headers.find("source_url");
+			data.source_url 	= res_source_url != not_found ? res_source_url->second : "";
+
+		const auto res_anime_name 	= response.headers.find("anime_name");
+			data.anime_name 	= res_anime_name != not_found ? res_anime_name->second : "";
 
 		return data;
 	}
 
-	std::map<std::string, EndpointSpec> get_available_endpoints() {
-		using return_type = std::map<std::string, EndpointSpec>;
-		
-		return_type endpoints = {};
-
-		const std::string req_url = get_base_url() + "/endpoints";
-
-		std::string res = "";
+	endpoint_map get_available_endpoints() {
+		endpoint_map 	endpoints 	= {};
+		const std::string req_url 	= get_base_url() + "/endpoints";
 
 		// request
-		const long status_code = _request(req_url, res);
-
-		if (!res.length()) {
-			fprintf(stderr, "[nekos-best++ ERROR] Request has no result\n");
-			return endpoints;
-		}
-		
-		nlohmann::json json_res = nlohmann::json::parse(res);
+		Response response 		= _request(req_url);
+		nlohmann::json json_res 	= response.raw_json;
 		
 		if (!json_res.is_object()) {
 			fprintf(stderr, "[nekos-best++ ERROR] Unexpected error, JSON Response is not an object:\n%s\n", json_res.dump(2).c_str());
@@ -236,36 +335,42 @@ namespace nekos_best {
 				if (!value.size()) continue;
 
 				EndpointSpec spec;
-				spec.json_result = value;
-				spec.name = spec_iterator.key();
-				spec.format = value.value("format", "");
-				spec.min = value.value("min", "");
-				spec.max = value.value("max", "");
+
+				spec.name 	= spec_iterator.key();
+				spec.format 	= parse_str_format(value.value("format", ""));
+				spec.min 	= value.value("min", "");
+				spec.max 	= value.value("max", "");
 
 				endpoints.insert(std::make_pair(spec.name, spec));
 			}
 		}
+		
+		_endpoints_c = endpoints;
 
 		return endpoints;
 	}
 
 	QueryResult fetch(const std::string& category, const int amount) {
-		std::string req_url = get_base_url() + "/" + curlpp::escape(category);
+		const std::string using_category = category.length() ? category : _get_random_endpoint(_get_random_format()).name;
+		std::string req_url = get_base_url() + "/" + curlpp::escape(using_category);
 
 		if (amount > 1) {
 			req_url += "?amount=" + std::to_string(amount);
 		}
 
-		std::string res = "";
-
 		// request
-		const long status_code = _request(req_url, res);
+		Response response = _request(req_url);
 
-		return _parse_query_result(res, status_code);
+		return _parse_query_result(response);
 	}
 
-	QueryResult search(const std::string& query, const int type, const std::string& category, const int amount) {
-		std::string req_url = get_base_url() + "/search?query=" + curlpp::escape(query) + "&type=" + std::to_string(type);
+	QueryResult search(const std::string& query, const image_format format, const std::string& category, const int amount) {
+		const std::string using_format 	= get_str_format(format & if_none ? _get_random_format() : format);
+		std::string 	req_url 	= get_base_url()
+						+ "/search?query="
+						+ curlpp::escape(query)
+						+ "&type="
+						+ using_format;
 
 		if (category.length()) {
 			req_url += "&category=" + curlpp::escape(category);
@@ -275,11 +380,9 @@ namespace nekos_best {
 			req_url += "&amount=" + std::to_string(amount);
 		}
 
-		std::string res = "";
-
 		// request
-		const long status_code = _request(req_url, res);
+		Response response = _request(req_url);
 
-		return _parse_query_result(res, status_code);
+		return _parse_query_result(response);
 	}
 } // nekos_best
