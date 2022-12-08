@@ -3,7 +3,7 @@
 #include <sstream>
 #include <string>
 #include <chrono>
-#include <algorithm>
+#include <iomanip>
 
 #include <curlpp/cURLpp.hpp>
 #include <curlpp/Easy.hpp>
@@ -19,10 +19,13 @@ namespace nekos_best {
 		NOBODY 	= 1,
 	};
 
-	time_t _last_rate_limit = 0L;
+	std::mutex ns_mutex;
 
 	endpoint_map _endpoints_c = {};
 	Response _resp_c;
+
+	std::map<std::string, RateLimitInfo>
+		_rate_limits_c 	= {};
 
 	int _get_random_number() {
 		srand(std::chrono::high_resolution_clock::now().time_since_epoch().count());
@@ -62,9 +65,9 @@ namespace nekos_best {
 	}
 
 	EndpointSpec _get_random_endpoint(const image_format format) {
-		const auto available = _get_endpoints_with_format(format);
+		const auto available 	= _get_endpoints_with_format(format);
 		
-		const size_t a_size = available.size();
+		const size_t a_size 	= available.size();
 		if (!a_size) {
 			fprintf(stderr,
 				"[nekos-best++ ERROR] No available endpoint for format: \"%s\"\n",
@@ -72,7 +75,7 @@ namespace nekos_best {
 			return { "", "", "", if_none };
 		}
 
-		const int random = _get_random_number() % a_size;
+		const int random 	= _get_random_number() % a_size;
 
 		return _endpoints_c.at(*(available.begin() + random));
 	}
@@ -134,8 +137,17 @@ namespace nekos_best {
 	}
 
 	// internal use, returns status code
-	Response _request(const std::string& req_url, _req_flag _flag = _req_flag::NONE)
+	Response _request(const std::string& req_url, const std::string& endpoint = "", _req_flag _flag = _req_flag::NONE)
 	{
+		std::string using_endpoint 	= endpoint.length() ? endpoint : req_url;
+		if (using_endpoint.length()) {
+			if (is_rate_limited(using_endpoint)) {
+				fprintf(stderr, "[nekos-best++ ERROR] You're still rate limited!\n");
+
+				return {};
+			}
+		}
+
 		using namespace curlpp;
 
 		std::ostringstream result_stream;
@@ -174,16 +186,17 @@ namespace nekos_best {
 				const size_t pos = line.find(": ");
 
 				if (pos != std::string::npos) {
-					const std::string key 	= line.substr(0, pos);
-					const std::string value = line.substr(pos + 2);
+					const std::string key 		= line.substr(0, pos);
+					const std::string value_with_cr = line.substr(pos + 2);
+					const std::string value 	= value_with_cr.substr(0, value_with_cr.length() - 1);
 
-					headers.insert(std::make_pair(key, value.substr(0, value.length() - 1)));
+					headers.insert(std::make_pair(key, value));
 				}
 			}
 		}
 
 		const std::string res 	= res_str.substr(header_size);
-		bool parse = true;
+		bool 		parse 	= true;
 
 		if (res_code != 200L) {
 			fprintf(stderr, "[nekos-best++ WARN] Response JSON:\n%s\n", res.c_str());
@@ -191,8 +204,56 @@ namespace nekos_best {
 
 		if (!res.length()) {
 			if (!(_flag & _req_flag::NOBODY)) fprintf(stderr, "[nekos-best++ WARN] Request has no result\n");
-			parse = false;
+				parse 	= false;
 		}
+
+		// 2022-12-08T13:08:40.0000000Z
+		// %Y-%m-%dT%H:%M:%S
+
+		// check for rate limit headers
+		const auto 	headers_end 		= headers.end();
+		const auto 	rate_limit_remaining 	= headers.find("x-rate-limit-remaining");
+
+		if (rate_limit_remaining != headers_end && rate_limit_remaining->second == "0") {
+			const auto rate_limit_reset 	= headers.find("x-rate-limit-reset");
+
+			if (rate_limit_reset != headers_end) {
+				std::tm time_struct 	= {};
+				time_struct.tm_isdst 	= -1;
+
+				// parse time
+				std::istringstream time_stream(rate_limit_reset->second);
+				time_stream >> std::get_time(&time_struct, "%Y-%m-%dT%H:%M:%S");
+
+				if (!time_stream.fail()) {
+
+					if (using_endpoint.length()) {
+						// store information in cache
+						RateLimitInfo info;
+
+						info.endpoint 			= using_endpoint;
+						time_t tim;
+						time(&tim);
+						info.rate_limit_at 		= *(std::gmtime(&tim));
+						info.rate_limit_reset_at 	= time_struct;
+
+						auto cache 			= _rate_limits_c.find(using_endpoint);
+
+						if (cache != _rate_limits_c.end()) cache->second = info;
+						else _rate_limits_c.insert(std::make_pair(using_endpoint, info));
+					}
+				}
+				else fprintf(stderr, "[nekos-best++ ERROR] Failed to parse rate limit reset timestamp, unexpected format: '%s'\n", rate_limit_reset->second.c_str());
+			}
+			else fprintf(stderr, "[nekos-best++ ERROR] API error, rate limited but no reset timestamp. Can't determine if actually rate limited or not\n");
+		}
+
+		// delete info struct from cache if the endpoint no longer rate limited
+		// disabled cuz bloat
+		// else {
+		// 	auto cache 	= _rate_limits_c.find(using_endpoint);
+		// 	if (cache != _rate_limits_c.end()) _rate_limits_c.erase(cache);
+		// }
 
 		_resp_c.status_code 	= res_code;
 		_resp_c.headers 	= headers;
@@ -207,7 +268,7 @@ namespace nekos_best {
 
 		nlohmann::json json_res = response.raw_json;
 
-		if (!json_res.is_object()) {
+		if (json_res.is_null() || !json_res.is_object()) {
 			fprintf(stderr, "[nekos-best++ ERROR] Unexpected error, JSON Response is not an object:\n%s\n", json_res.dump(2).c_str());
 			return result;
 		}
@@ -273,6 +334,15 @@ namespace nekos_best {
 		return _get_last_response(true);
 	}
 
+	bool is_rate_limited(const std::string& endpoint_or_url) {
+		auto cache = _rate_limits_c.find(endpoint_or_url);
+		if (cache == _rate_limits_c.end()) return false;
+
+		time_t current_time;
+		time(&current_time);
+		return std::mktime(std::gmtime(&current_time)) < std::mktime(&cache->second.rate_limit_reset_at);
+	}
+
 	Meta fetch_single(const std::string& category, const std::string& filename, const image_format format) {
 		Meta data;
 
@@ -318,7 +388,7 @@ namespace nekos_best {
 					+ str_format;
 
 				data.url 	= req_url;
-		Response 	response 	= _request(req_url, NOBODY);
+		Response 	response 	= _request(req_url, using_category, NOBODY);
 		const auto 	not_found 	= response.headers.end();
 
 		const auto res_artist_href 	= response.headers.find("artist_href");
@@ -385,7 +455,7 @@ namespace nekos_best {
 		}
 
 		// request
-		Response response = _request(req_url);
+		Response response = _request(req_url, using_category);
 
 		return _parse_query_result(response);
 	}
@@ -407,7 +477,7 @@ namespace nekos_best {
 		}
 
 		// request
-		Response response = _request(req_url);
+		Response response = _request(req_url, category);
 
 		return _parse_query_result(response);
 	}

@@ -1,5 +1,8 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <thread>
+#include <chrono>
+
 #include "nekos-best++.hpp"
 
 int main(const int argc, const char *argv[]) {	// nekos_best::fetch
@@ -20,6 +23,49 @@ int main(const int argc, const char *argv[]) {	// nekos_best::fetch
 		printf("url: \"%s\"\n", r.url.c_str());
 		printf("anime_name: \"%s\"\n", r.anime_name.c_str());
 		printf("\n");
+	}
+
+	const auto headers = nekos_best::get_last_request_response().headers;
+	for (const auto data : headers) {
+		printf("'%s': '%s'\n", data.first.c_str(), data.second.c_str());
+	}
+
+	int t_count = 0;
+
+	for (int i = 0; i < 5; i++) {
+		std::thread t([&t_count, i](){
+					for (int j = 0; j < 5; j++) {
+						printf("REQUEST %d %d\n", i+1, j+1);
+						// lock mutex to prevent data races, but this is a rate limit test so we don't need it
+						// std::lock_guard<std::mutex> lk(nekos_best::ns_mutex);
+						nekos_best::search("neko", (nekos_best::image_format)1, "neko", 50);
+						// const auto headers = nekos_best::get_last_request_response().headers;
+						// for (const auto data : headers) {
+						// 	printf("'%s': '%s'\n", data.first.c_str(), data.second.c_str());
+						// }
+						const bool r = nekos_best::is_rate_limited("neko");
+						printf("Is rate limited: %d\n", r);
+						if (r) printf("RATE LIMITED\n");
+					}
+					t_count--;
+				});
+		t_count++;
+		t.detach();
+	}
+
+	std::thread t([&t_count](){
+				std::this_thread::sleep_for(std::chrono::seconds(10));
+				std::lock_guard<std::mutex> lk(nekos_best::ns_mutex);
+				const bool r = nekos_best::is_rate_limited("neko");
+				printf("Is rate limited: %d\n", r);
+				if (r) printf("RATE LIMITED\n");
+				t_count--;
+			});
+	t_count++;
+	t.detach();
+
+	while (t_count>0) {
+		std::this_thread::sleep_for(std::chrono::seconds(2));
 	}
 
 	return 0;

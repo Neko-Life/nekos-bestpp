@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <ctime>
+#include <mutex>
 #include "nlohmann/json.hpp"
 
 namespace nekos_best {
@@ -87,6 +89,24 @@ namespace nekos_best {
 	};
 
 	/**
+	 * @brief Rate limit info struct
+	 */
+	struct RateLimitInfo {
+		// endpoint name
+		std::string endpoint;
+		std::tm rate_limit_at;
+		std::tm rate_limit_reset_at;
+	};
+
+	/**
+	 * @brief Namespace mutex for thread safety.
+	 * You do not want any internal race condition if you do threading with this library.
+	 * If you do use threads (eg. for async neko fetch), always lock this whenever
+	 * 	you call any of the function this library provides.
+	 */
+	extern std::mutex ns_mutex;
+
+	/**
 	 * @brief Initializes client, call this once to cache endpoints data from the API.
 	 * 
 	 * An unitialized client can't get random endpoint if any of the fetch omittable param is omitted.
@@ -117,13 +137,18 @@ namespace nekos_best {
 	/**
 	 * @brief Get API list of available endpoint
 	 */
-	std::map<std::string, EndpointSpec> get_available_endpoints();
+	endpoint_map get_available_endpoints();
 
 	/**
 	 * @brief Get last API response, emptying the response cache.
 	 * 	You should copy it somewhere else if you were gonna keep it.
 	 */
 	Response get_last_request_response();
+
+	/**
+	 * @brief Check whether endpoint/url is currently ratelimited
+	 */
+	bool is_rate_limited(const std::string& endpoint_or_url);
 
 	/**
 	 * @brief Fetch to a category endpoint
