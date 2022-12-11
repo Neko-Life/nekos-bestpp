@@ -46,6 +46,28 @@ int main(const int argc, const char *argv[]) {	// nekos_best::fetch
 						const bool r = nekos_best::is_rate_limited("neko");
 						printf("Is rate limited: %d\n", r);
 						if (r) printf("RATE LIMITED\n");
+
+						// check rate limit info
+						const auto info = nekos_best::get_rate_limit_info("neko");
+						// if info exist
+						if (info.endpoint.length()) {
+							printf("ENDPOINT: '%s'\n", info.endpoint.c_str());
+
+							char buff[128];
+
+							std::strftime(buff, sizeof buff, "%A %c", &info.rate_limit_at);
+							printf("RATE LIMITED AT: '%s'\n", buff);
+
+							std::strftime(buff, sizeof buff, "%A %c", &info.rate_limit_reset_at);
+							printf("RATE LIMIT RESET AT: '%s'\n", buff);
+
+							std::tm current_time;
+							time_t now;							
+							time(&now);
+							current_time = *std::gmtime(&now);
+							std::strftime(buff, sizeof buff, "%A %c", &current_time);
+							printf("REQUEST MADE AT: '%s'\n", buff);
+						}
 					}
 					t_count--;
 				});

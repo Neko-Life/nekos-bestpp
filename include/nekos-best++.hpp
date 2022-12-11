@@ -151,6 +151,12 @@ namespace nekos_best {
 	bool is_rate_limited(const std::string& endpoint_or_url);
 
 	/**
+	 * @brief Get rate limit info struct for endpoint or url.
+	 * 	Returns empty struct if nothing found.
+	 */
+	RateLimitInfo get_rate_limit_info(const std::string& endpoint_or_url);
+
+	/**
 	 * @brief Fetch to a category endpoint
 	 * @param category will pick one randomly if omitted
 	 * @param amount default to 1

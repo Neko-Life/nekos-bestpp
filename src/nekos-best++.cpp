@@ -343,6 +343,12 @@ namespace nekos_best {
 		return std::mktime(std::gmtime(&current_time)) < std::mktime(&cache->second.rate_limit_reset_at);
 	}
 
+	RateLimitInfo get_rate_limit_info(const std::string& endpoint_or_url) {
+		auto cache = _rate_limits_c.find(endpoint_or_url);
+		if (cache != _rate_limits_c.end()) return cache->second;
+		else return { "", {}, {} };
+	}
+
 	Meta fetch_single(const std::string& category, const std::string& filename, const image_format format) {
 		Meta data;
 
