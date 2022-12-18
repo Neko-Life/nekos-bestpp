@@ -116,6 +116,7 @@ namespace nekos_best {
 
 	void _set_last_response(Response* resp) {
 		_resp_c.headers 	= resp && resp->headers.size() ? resp->headers : std::map<std::string, std::string>();
+		_resp_c.header_size 	= resp && resp->header_size ? resp->header_size : 0L;
 		_resp_c.status_code 	= resp && resp->status_code > 0L ? resp->status_code : 0L;
 		_resp_c.raw_json 	= resp && resp->raw_json.size() ? resp->raw_json : nlohmann::json();
 	}
@@ -136,8 +137,11 @@ namespace nekos_best {
 		meta.anime_name 	= json.value("anime_name", "");
 	}
 
-	// internal use, returns status code
-	Response _request(const std::string& req_url, const std::string& endpoint = "", _req_flag _flag = _req_flag::NONE)
+	// internal use, returns Response object
+	Response _request(const std::string& req_url,
+			const std::string& 	endpoint 	= "",
+			_req_flag 		_flag 		= _req_flag::NONE,
+			std::ostringstream* download_stream 	= nullptr)
 	{
 		std::string using_endpoint 	= endpoint.length() ? endpoint : req_url;
 		if (using_endpoint.length()) {
@@ -157,7 +161,7 @@ namespace nekos_best {
 
 		// set header
 		request.setOpt(Options::Header("user-agent: nekos.best++"));
-		request.setOpt(Options::WriteStream(&result_stream));
+		request.setOpt(Options::WriteStream(download_stream == nullptr ? &result_stream : download_stream));
 
 		if (_flag & _req_flag::NOBODY) {
 			request.setOpt(Options::NoBody(1));
@@ -167,6 +171,7 @@ namespace nekos_best {
 
 		// perform the request
 		request.perform();
+		if (download_stream) result_stream = std::ostringstream(download_stream->str());
 
 		const auto res_code = Infos::ResponseCode::get(request);
 
@@ -195,6 +200,11 @@ namespace nekos_best {
 			}
 		}
 
+		if (header_size > res_str.length()) {
+			fprintf(stderr, "[nekos-best++ ERROR] Failed getting response. Header size > response length\n");
+			return _resp_c;
+		}
+
 		const std::string res 	= res_str.substr(header_size);
 		bool 		parse 	= true;
 
@@ -202,7 +212,7 @@ namespace nekos_best {
 			fprintf(stderr, "[nekos-best++ WARN] Response JSON:\n%s\n", res.c_str());
 		}
 
-		if (!res.length()) {
+		if (!res.length() || download_stream != nullptr) {
 			if (!(_flag & _req_flag::NOBODY)) fprintf(stderr, "[nekos-best++ WARN] Request has no result\n");
 				parse 	= false;
 		}
@@ -256,6 +266,7 @@ namespace nekos_best {
 		// }
 
 		_resp_c.status_code 	= res_code;
+		_resp_c.header_size 	= header_size;
 		_resp_c.headers 	= headers;
 		_resp_c.raw_json 	= parse ? nlohmann::json::parse(res) : nlohmann::json();
 
@@ -349,7 +360,7 @@ namespace nekos_best {
 		else return { "", {}, {} };
 	}
 
-	Meta fetch_single(const std::string& category, const std::string& filename, const image_format format) {
+	Meta fetch_single(const std::string& category, const std::string& filename, const image_format format, std::ostringstream* download_stream) {
 		Meta data;
 
 		const size_t cat_length 	= category.length();
@@ -393,8 +404,10 @@ namespace nekos_best {
 					+ "."
 					+ str_format;
 
+		const bool 	download 	= download_stream != nullptr; 
+
 				data.url 	= req_url;
-		Response 	response 	= _request(req_url, using_category, NOBODY);
+		Response 	response 	= _request(req_url, using_category, download ? NONE : NOBODY, download_stream);
 		const auto 	not_found 	= response.headers.end();
 
 		const auto res_artist_href 	= response.headers.find("artist_href");

@@ -45,6 +45,9 @@ namespace nekos_best {
 	struct Response {
 		// response status, you can use this to determine whether a request succeeded
 		long status_code;
+
+		// header size contained in response stream
+		long header_size;
 		
 		// response headers, a key value pair
 		std::map<std::string, std::string> headers;
@@ -168,8 +171,9 @@ namespace nekos_best {
 	 * @param category will pick one randomly if omitted
 	 * @param filename image filename, variable digit of number as string, will pick one randomly if omitted
 	 * @param format will pick one randomly if omitted
+	 * @param download_stream pointer to response buffer to store both header and raw response
 	 */
-	Meta fetch_single(const std::string& category = "", const std::string& filename = "", const image_format format = if_none);
+	Meta fetch_single(const std::string& category = "", const std::string& filename = "", const image_format format = if_none, std::ostringstream* download_stream = nullptr);
 
 	/**
 	 * @brief Search for image
