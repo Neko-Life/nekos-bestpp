@@ -53,8 +53,9 @@ main (const int argc, const char *argv[])
                         printf ("\n");
                 }
         {
-                nekos_best::Meta meta = nekos_best::fetch_single (
-                    "neko", "0154", nekos_best::if_png);
+                nekos_best::Meta meta = nekos_best::download (
+                    "https://nekos.best/api/v2/hug/"
+                    "2363175c-4cda-414e-8929-a87f53fc1cc1.gif");
 
                 printf ("artist_href: \"%s\"\n", meta.artist_href.c_str ());
                 printf ("artist_name: \"%s\"\n", meta.artist_name.c_str ());
@@ -64,19 +65,9 @@ main (const int argc, const char *argv[])
                 printf ("\n");
         }
         {
-                nekos_best::Meta meta = nekos_best::fetch_single (
-                    "hug", "035", nekos_best::if_png);
-
-                printf ("artist_href: \"%s\"\n", meta.artist_href.c_str ());
-                printf ("artist_name: \"%s\"\n", meta.artist_name.c_str ());
-                printf ("source_url: \"%s\"\n", meta.source_url.c_str ());
-                printf ("url: \"%s\"\n", meta.url.c_str ());
-                printf ("anime_name: \"%s\"\n", meta.anime_name.c_str ());
-                printf ("\n");
-        }
-        {
-                // omitted parameters
-                nekos_best::Meta meta = nekos_best::fetch_single ();
+                nekos_best::Meta meta = nekos_best::download (
+                    "https://nekos.best/api/v2/hug/"
+                    "b1136a84-2653-4c87-b80f-ea3cc0bf6ab9.gif");
 
                 printf ("artist_href: \"%s\"\n", meta.artist_href.c_str ());
                 printf ("artist_name: \"%s\"\n", meta.artist_name.c_str ());
@@ -88,9 +79,11 @@ main (const int argc, const char *argv[])
         {
                 // download
                 std::ostringstream download_stream;
-                // 					get random stuff
-                nekos_best::Meta meta = nekos_best::fetch_single (
-                    "", "", nekos_best::if_none, &download_stream);
+
+                nekos_best::Meta meta = nekos_best::download (
+                    "https://nekos.best/api/v2/hug/"
+                    "548daa04-3dff-4524-bb28-c229e5542e9f.gif",
+                    &download_stream);
 
                 std::ofstream file;
 
