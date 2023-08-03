@@ -231,7 +231,6 @@ _request (const std::string &req_url, const std::string &endpoint = "",
         using namespace curlpp;
 
         std::ostringstream result_stream;
-        Cleanup clean_up;
 
         Easy request;
 
