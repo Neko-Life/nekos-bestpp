@@ -234,6 +234,8 @@ _request (const std::string &req_url, const std::string &endpoint = "",
 
         Easy request;
 
+        request.setOpt (Options::Header (1L));
+
         // set header
         request.setOpt (Options::HttpHeader ({ "user-agent: nekos.best++" }));
         request.setOpt (Options::WriteStream (
@@ -262,15 +264,13 @@ _request (const std::string &req_url, const std::string &endpoint = "",
 
         const auto header_size = Infos::HeaderSize::get (request);
         const std::string res_str = result_stream.str ();
-        bool has_header = res_str.empty () ? false : res_str[0] != '{';
 
         std::map<std::string, std::string> headers = {};
 
         // parse headers
-        if (has_header) {
+        {
                 std::istringstream str_stream (
                     res_str.substr (0, header_size));
-
                 for (std::string line; std::getline (str_stream, line);)
                         {
                                 const size_t pos = line.find (": ");
@@ -303,7 +303,7 @@ _request (const std::string &req_url, const std::string &endpoint = "",
                         return _resp_c;
                 }
 
-        const std::string res = has_header ? res_str.substr (header_size) : res_str;
+        const std::string res = res_str.substr (header_size);
         bool parse = true;
 
         if (res_code != 200L)
@@ -418,7 +418,7 @@ _request (const std::string &req_url, const std::string &endpoint = "",
         // }
 
         _resp_c.status_code = res_code;
-        _resp_c.header_size = has_header ? header_size : 0;
+        _resp_c.header_size = header_size;
         _resp_c.headers = headers;
         _resp_c.raw_json
             = parse ? nlohmann::json::parse (res) : nlohmann::json ();
