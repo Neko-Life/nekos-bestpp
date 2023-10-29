@@ -235,7 +235,7 @@ _request (const std::string &req_url, const std::string &endpoint = "",
         Easy request;
 
         // set header
-        request.setOpt (Options::Header ("user-agent: nekos.best++"));
+        request.setOpt (Options::HttpHeader ({ "user-agent: nekos.best++" }));
         request.setOpt (Options::WriteStream (
             download_stream == nullptr ? &result_stream : download_stream));
 
@@ -626,7 +626,7 @@ fetch_single (const std::string &category, const std::string &filename,
         Response response
             = _request (req_url, using_category, download ? NONE : NOBODY,
                         download_stream);
-        
+
         _populate_download_meta (data, response);
 
         return data;
@@ -747,16 +747,16 @@ download (const std::string &url, std::ostringstream *download_stream)
 {
         Meta data;
 
-        static const size_t endpoint_index = (get_base_url () + "/").length();
-        std::string using_category = url.substr(endpoint_index, url.find_last_of('/') - endpoint_index);
+        static const size_t endpoint_index = (get_base_url () + "/").length ();
+        std::string using_category = url.substr (
+            endpoint_index, url.find_last_of ('/') - endpoint_index);
 
         const bool download = download_stream != nullptr;
 
         data.url = url;
-        Response response
-            = _request (url, using_category, download ? NONE : NOBODY,
-                        download_stream);
-        
+        Response response = _request (
+            url, using_category, download ? NONE : NOBODY, download_stream);
+
         _populate_download_meta (data, response);
 
         return data;
